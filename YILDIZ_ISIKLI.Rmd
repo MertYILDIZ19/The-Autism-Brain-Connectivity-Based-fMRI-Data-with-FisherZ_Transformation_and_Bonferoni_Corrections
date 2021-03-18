@@ -1,0 +1,267 @@
+---
+title: "Stat4DS / Homework 03"
+output:
+    prettydoc::html_pretty:
+    highlight: github
+    theme: cayman
+---
+---
+subtitle: "ROIs Connectomes for Autism Spectrum Disorder (ASD) and Typically Developed (TD) Subjecs"
+output:
+  html_document:
+    df_print: paged
+---
+
+Mert YILDIZ
+Dilara ISIKLI
+
+```{r}
+
+library(corrplot)
+library(igraph)
+library(ggraph)
+
+
+load("C:/Users/MERTYILDIZ/Desktop/LaSapienza/SDS Brutti/HW3/hw3_data.RData")
+```
+
+
+With the code chunk below we have used lapply() function and cor to find the correlations matrices for 12 ASD and 12 TD subjects. 
+
+
+```{r}
+asd_sel_rho <- lapply(asd_sel, cor) #Correlation matrices of ASD subjects
+td_sel_rho <- lapply(td_sel, cor) #Correlation matrices of TD subjects
+```
+
+
+*WITH FISHER Z TRANSFORMATION AND BONFERRONI CORRECTION*
+
+With the code chunk below we have created a function that takes the correlation matrix of ASD subject and the alpha value that we have applied the Bonferroni correction. The function takes the correlation matrix and applies the Fisher Z transformation. Then we get the true association graph for ASD subjects based on 95% asymptotic confidence intervals for ρASDj,k. Finally, we have put the edges between ROIs for the confidence intervals satisfy [−t,+t] ∩ Cj,k(α) = 0, and we have got the graph for the ASD subject.
+
+
+```{r}
+asd_subj <- function(subject, alpha){
+  
+  correl <- asd_sel_rho[[subject]] # Take the matrix for specified subject
+  zr <- atanh(correl) #Fisher Z transformation
+  
+  n <- 116 # Sample size of ROI's
+  
+  z <- qnorm (1- alpha/2) 
+  sigma <- 1/sqrt(n - 3) 
+  
+  CI_upp <- zr + z*sigma
+  CI_low <- zr - z*sigma
+  
+  G_matrix = matrix(data=0, nrow=n, ncol=n)
+  
+  t <- quantile(correl[lower.tri(correl, diag = FALSE)], .8)
+  
+  for (i in 1:n){
+    
+    for (j in 1:n){
+      
+      if (CI_upp[i,j] <= -t | CI_low[i,j] >= t){
+        
+        G_matrix[i,j] = correl[i,j]
+        
+      }
+      
+    }
+  }
+  
+  G_asd = graph_from_adjacency_matrix(G_matrix, mode = "upper", weighted=TRUE)
+  
+  a=row.names(asd_sel_rho[[subject]])
+  ggraph(G_asd, layout = 'linear', circular = TRUE) + geom_edge_link(aes(color=(abs(E(G_asd)$weight)))) + scale_edge_colour_gradient(low = "#bdeaff", high = "#db16db",space = "Lab", guide = "edge_colourbar") + geom_node_text(aes(label = a),fontface = "bold")
+}
+n <- 116
+alpha <-  0.05/(n*(n-1)/2) # Apply Bonferoni correction to alpha for conf. interval
+
+```
+
+We have used the function above in the code chunk below and got 12 graphs for ASD subjects.
+
+```{r}
+for (z in 1:12)
+{
+  print(asd_subj(z,alpha))
+}
+```
+
+
+With the code chunk below we have created a function that takes the correlation matrix of TD subject and the alpha value that we have applied Bonferroni correction. The function takes the correlation matrix and applies the Fisher Z transformation. Then we get the true association graph for TD subjects based on 95% asymptotic confidence intervals for ρTDj,k. Finally, we have put the edges between ROIs for the confidence intervals satisfy [−t,+t] ∩ Cj,k(α) = 0, and we have got the graph for the TD subject.
+
+
+
+```{r}
+td_subj <- function(subject, alpha){
+  
+  correl <- td_sel_rho[[subject]] # Take the matrix for specified subject
+  zr <- atanh(correl) #Fisher Z transformation
+  
+  n <- 116 # Sample size of ROI's
+  
+  z <- qnorm (1- alpha/2) 
+  sigma <- 1/sqrt(n - 3) 
+  
+  CI_upp <- zr + z*sigma
+  CI_low <- zr - z*sigma
+  
+  G_matrix = matrix(data=0, nrow=n, ncol=n)
+  
+  t <- quantile(correl[lower.tri(correl, diag = FALSE)], .8)
+  
+  for (i in 1:n){
+    
+    for (j in 1:n){
+      
+      if (CI_upp[i,j] <= -t | CI_low[i,j] >= t){
+        
+        G_matrix[i,j] = correl[i,j]
+        
+      }
+      
+    }
+  }
+  
+  G_td = graph_from_adjacency_matrix(G_matrix, mode = "upper", weighted=TRUE)
+  
+  a=row.names(td_sel_rho[[subject]])
+  ggraph(G_td, layout = 'linear', circular = TRUE) + geom_edge_link(aes(color=(abs(E(G_td)$weight)))) + scale_edge_colour_gradient(low = "#bdeaff", high = "#db16db",space = "Lab", guide = "edge_colourbar") + geom_node_text(aes(label = a),fontface = "bold")
+}
+```
+
+We have used the function above in the code chunk below and got 12 graphs for TD subjects.
+
+```{r}
+for(t in 1:12)
+{
+  print(td_subj(t,alpha))
+}
+```
+
+
+As it is shown above on the ASD and TD subjects/patients graphs, we can say that there are more edges in the Typically Developed(TD) graphs than the Autism Spectrum Disorder(ASD) graphs and we can see that TD graphs have stronger correlations than ASD graphs. Since the TD patients should have more healthy and connected ROIs with strong connections, we can conclude that the true association graphs are not bad. We might try some other methods but we believe that we already have good estimates.
+
+*WITHOUT BONFERRONI CORRECTION*
+
+Now let's check the graphs for 1 ASD subject and 1 TD subjects without the Bonferroni corrections and see the difference.
+
+```{r}
+alpha <- 0.05 
+asd_subj(1, alpha)
+td_subj(1, alpha)
+```
+
+As it is shown above without the Bonferroni correction we have more edges which means connections between ROIs for both ASD and TD compared to the graphs that we have applied the Bonferroni correction, it is shown that we are taking the low correlations into account since we are not doing the Bonferroni correction. In short, this might lead us to label the connections wrong, meaningly we are saying that there are connections between some ROIs with these graphs but there might not actually be the connections. So, we need the Bonferroni corrections to have better estimates.
+
+
+*BONUS*
+
+In this part we have normalized the ASD and TD data since their ranges were differ from each other. And we took the mean of 12 ASD and 12 TD subjects data. After that we have applied the bootstrap to find the standard error. Then we have created the difference graph by considering (1-α) asymptotic confidence intervals.
+
+
+```{r}
+mean_asd <- 0
+
+for (p in 1:12)
+{
+  means <- apply(asd_sel[[p]], MARGIN=2, FUN=mean)
+  stds <- apply(asd_sel[[p]], MARGIN=2, FUN=sd)
+  standardized <- (asd_sel[[p]]-means)/stds
+  standardized <- array(as.numeric(unlist(standardized)), dim=c(145,116))
+  mean_asd <- mean_asd + standardized
+}
+mean_asd <- mean_asd /12
+
+
+mean_td <- 0
+for (p in 1:12)
+{
+  means <- apply(td_sel[[p]], MARGIN=2, FUN=mean)
+  stds <- apply(td_sel[[p]], MARGIN=2, FUN=sd)
+  standardized <- (td_sel[[p]]-means)/stds
+  standardized <- array(as.numeric(unlist(standardized)), dim=c(145,116))
+  mean_td <- mean_td + standardized
+}
+mean_td <- mean_td /12
+```
+
+```{r}
+
+call_boots <- function(type_mean){
+  B = 1000
+  # empty 3D array that will contain all the 1000 bootstrapped correlation matrices
+  R_star = array(data=NA, dim = c(116,116,B))
+  # number or rows
+  n = 116
+
+  for (b in 1:B){
+    idx = sample(1:116, replace=T)
+    # evaluate the bootstrapped correlation matrix
+    R_star[,,b] = cor(type_mean[idx,])
+   }
+  return (R_star)
+}
+```
+
+
+```{r}
+R_star_asd = call_boots(mean_asd)
+R_sd_asd= apply(R_star_asd, MARGIN=c(1,2), FUN=sd)
+
+
+rho_hat_asd <- cor(mean_asd)
+
+CIup_asd = rho_hat_asd + qnorm(1-(alpha/2)) *  R_sd_asd
+CIlow_asd = rho_hat_asd - qnorm(1-(alpha/2)) *  R_sd_asd
+
+
+R_star_td = call_boots(mean_td)
+R_sd_td= apply(R_star_td, MARGIN=c(1,2), FUN=sd)
+
+
+rho_hat_td <- cor(mean_td)
+
+CIup_td = rho_hat_td + qnorm(1-(alpha/2)) *  R_sd_td
+CIlow_td = rho_hat_td - qnorm(1-(alpha/2)) *  R_sd_td
+
+
+```
+
+```{r}
+CIup = CIup_asd- CIup_td
+CIlow = CIlow_asd - CIlow_td
+
+
+diff_rho = rho_hat_asd- rho_hat_td
+t <- quantile(diff_rho[lower.tri(diff_rho, diag = FALSE)], p=0.95)
+#t <- 0.5
+G_matrix = matrix(data=0, nrow=n, ncol=n)
+
+for (i in 1:n){
+    
+    for (j in 1:n){
+      
+      if (CIup[i,j] <= -t | CIlow[i,j] >= t){
+        
+        G_matrix[i,j] = diff_rho[i,j]
+        
+      }
+      
+    }
+  }
+  
+  G_td = graph_from_adjacency_matrix(G_matrix, mode = "upper", weighted=TRUE)
+  
+  a=row.names(1:116)
+  ggraph(G_td, layout = 'linear', circular = TRUE) + geom_edge_link(aes(color=(abs(E(G_td)$weight)))) + scale_edge_colour_gradient(low = "#bdeaff", high = "#db16db",space = "Lab", guide = "edge_colourbar") 
+  
+  hist(diff_rho)
+
+```
+
+
+As we can see the above graph of bootstraped difference, we can say that there is a significant difference for the graph of ASD subjects and TD subjects for the ROIs connections. We chose the percentile as high as we think that might be more accurate to make sure that we are putting the edges for the strong enough correlations difference. 
